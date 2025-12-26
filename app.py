@@ -2,7 +2,6 @@ import string
 import secrets
 import streamlit as st
 from datetime import datetime
-import pyperclip
 import qrcode
 from io import BytesIO
 
@@ -41,6 +40,10 @@ def generate_and_store_password(length, use_upper, use_lower, use_digit, use_sym
     if exclude_similar:
         chars = "".join(c for c in chars if c not in "0Ool1I")
 
+    if not chars:
+        st.warning("Select at least one character set.")
+        return
+
     pwd = generate_password(length, chars)
     st.session_state.password = pwd
     st.session_state.password_history.append({
@@ -69,7 +72,7 @@ st.markdown("""
     font-weight: 600;
     word-break: break-all;
     border: 1px solid #1e293b;
-    margin-bottom:16px;
+    margin-bottom:12px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -85,35 +88,31 @@ with left:
     use_symbols = st.checkbox("Symbols", False)
     exclude_similar = st.checkbox("Exclude similar")
     length = st.slider("Length", 4, 64, 16)
-    num_passwords = st.number_input("Number of passwords to generate", min_value=1, max_value=20, value=1, step=1)
+    num_passwords = st.number_input(
+        "Number of passwords to generate",
+        min_value=1, max_value=20, value=1, step=1
+    )
 
 # ================== CENTER ==================
 with center:
     st.subheader("🔑 Generated Password")
 
-    # عرض فقط (مش إدخال)
-    st.markdown(
-        f"""
-        <div class="password-box">
-            {st.session_state.password or "Click Generate"}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # ✅ أيقونة الكوبي المدمجة
+    st.code(st.session_state.password or "Click Generate")
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔁 Generate", use_container_width=True):
             for _ in range(num_passwords):
                 generate_and_store_password(
-                    length, use_upper, use_lower, use_digit, use_symbols, exclude_similar
+                    length, use_upper, use_lower,
+                    use_digit, use_symbols, exclude_similar
                 )
             st.rerun()
 
     with col2:
-        if st.button("📋 Copy", use_container_width=True):
-            pyperclip.copy(st.session_state.password)
-            st.success("Copied!")
+        if st.button("🔳 Show / Hide QR", use_container_width=True):
+            st.session_state.show_qr = not st.session_state.show_qr
 
     if st.session_state.password:
         score = password_strength(st.session_state.password)
@@ -125,9 +124,6 @@ with center:
             <div style="width:{score*20}%;background:{color};height:100%;border-radius:8px;"></div>
         </div>
         """, unsafe_allow_html=True)
-
-        if st.button("🔳 Show / Hide QR"):
-            st.session_state.show_qr = not st.session_state.show_qr
 
         if st.session_state.show_qr:
             st.image(generate_qr_image(st.session_state.password), width=120)
@@ -160,9 +156,6 @@ with right:
         latest = history[-1]
         st.code(latest["password"])
         st.caption(latest["time"])
-
-        if st.button("📋 Copy Latest"):
-            pyperclip.copy(latest["password"])
 
         if st.button("🔳 QR Latest"):
             st.image(generate_qr_image(latest["password"]), width=70)
