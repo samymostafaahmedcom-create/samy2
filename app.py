@@ -25,7 +25,7 @@ def generate_qr_image(data):
     qr = qrcode.QRCode(version=1, box_size=5, border=2)
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#22c55e", back_color="white")
+    img = qr.make_image(fill_color="#050706D6", back_color="white")
     buf = BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
@@ -90,7 +90,7 @@ with left:
     length = st.slider("Length", 4, 64, 16)
     num_passwords = st.number_input(
         "Number of passwords to generate",
-        min_value=1, max_value=20, value=1, step=1
+        min_value=1, max_value=50, value=1, step=1
     )
 
 # ================== CENTER ==================
@@ -114,8 +114,8 @@ with center:
         if st.button("🔳 Show / Hide QR", use_container_width=True):
             st.session_state.show_qr = not st.session_state.show_qr
 
-    if st.session_state.password:
-        score = password_strength(st.session_state.password)
+    if st.session_state.password:   #شريط قوة الباسورد
+        score = password_strength(st.session_state.password)      
         color = "#ef4444" if score <= 2 else "#facc15" if score == 3 else "#22c55e"
 
         st.markdown(f"**Strength:** {strength_label(score)}")
