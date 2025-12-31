@@ -2,7 +2,6 @@ import string
 import secrets
 import streamlit as st
 from datetime import datetime
-import qrcode
 from io import BytesIO
 
 # ================== FUNCTIONS ==================
