@@ -3,7 +3,7 @@ import secrets
 import streamlit as st
 from datetime import datetime
 from io import BytesIO
-
+import qrcode 
 # ================== FUNCTIONS ==================
 def generate_password(length, chars):
     return "".join(secrets.choice(chars) for _ in range(length))
