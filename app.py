@@ -89,7 +89,7 @@ with left:
     length = st.slider("Length", 4, 64, 16)
     num_passwords = st.number_input(
         "Number of passwords to generate",
-        min_value=1, max_value=50, value=1, step=1
+        min_value=1, max_value=5000000000, value=1, step=1
     )
 
 # ================== CENTER ==================
