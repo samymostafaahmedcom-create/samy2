@@ -164,7 +164,7 @@ with center:
                     length, use_upper, use_lower,
                     use_digit, use_symbols, exclude_similar
                 )
-            st.rerun()
+            # لا نعمل rerun هنا عشان الهيستوري يظل محفوظ
 
     with c2:
         if st.button("🔳 Show / Hide QR", use_container_width=True):
@@ -179,6 +179,7 @@ with center:
             <div style="width:{score*20}%;background:{color};height:100%;border-radius:8px;"></div>
         </div>
         """, unsafe_allow_html=True)
+
         if st.session_state.show_qr:
             st.image(generate_qr_image(st.session_state.password), width=120)
 
@@ -186,20 +187,23 @@ with center:
     test_pwd = st.text_input("Enter password", type="password")
     if test_pwd:
         test_score = password_strength(test_pwd)
+        test_color = "#ef4444" if test_score <= 2 else "#facc15" if test_score == 3 else "#22c55e"
         st.markdown(f"**Strength:** {strength_label(test_score)}")
+        st.markdown(f"""
+        <div style="background:#334155;border-radius:8px;height:10px;">
+            <div style="width:{test_score*20}%;background:{test_color};height:100%;border-radius:8px;"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ================== RIGHT ==================
 with right:
     st.subheader("📜 History")
-
     search_query = st.text_input("🔍 Search password history", placeholder="Type part of a password...")
 
     if st.button("🗑️ Clear History"):
         st.session_state.password_history.clear()
-        st.rerun()
 
     history = st.session_state.password_history
-
     if search_query:
         history = [item for item in history if search_query.lower() in item["password"].lower()]
 
@@ -220,6 +224,5 @@ with right:
         if rest:
             if st.button("⬇️ Show More" if not st.session_state.show_all_history else "⬆️ Show Less"):
                 st.session_state.show_all_history = not st.session_state.show_all_history
-                st.rerun()
     else:
         st.caption("No passwords match your search.")
