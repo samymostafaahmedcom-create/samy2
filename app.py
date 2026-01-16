@@ -5,182 +5,258 @@ from datetime import datetime
 from io import BytesIO
 import qrcode
 
+# ================== PAGE CONFIG ==================
+st.set_page_config(
+    page_title="Secure Password Generator",
+    page_icon="🔐",
+    layout="wide"
+)
+
+# ================== THEME ==================
+PRIMARY = "#0F172A"
+SUCCESS = "#22C55E"
+DANGER = "#DC2626"
+WARNING = "#F97316"
+INFO = "#EAB308"
+BG = "#F8FAFC"
+CARD = "#FFFFFF"
+BORDER = "#E5E7EB"
+MUTED = "#64748B"
+
+# ================== SESSION ==================
+st.session_state.setdefault("password", "")
+st.session_state.setdefault("history", [])
+st.session_state.setdefault("copied", False)
+st.session_state.setdefault("show_all_history", False)
+st.session_state.setdefault("show_qr", False)
+
 # ================== FUNCTIONS ==================
 def generate_password(length, chars):
     return "".join(secrets.choice(chars) for _ in range(length))
 
-def password_strength(password):
+def strength(password):
     score = 0
-    if len(password) >= 12: score += 1
-    if any(c.islower() for c in password): score += 1
-    if any(c.isupper() for c in password): score += 1
-    if any(c.isdigit() for c in password): score += 1
-    if any(c in "!@#$%^&*_" for c in password): score += 1
+    score += len(password) >= 12
+    score += any(c.islower() for c in password)
+    score += any(c.isupper() for c in password)
+    score += any(c.isdigit() for c in password)
+    score += any(c in "!@#$%^&*_" for c in password)
     return score
 
 def strength_label(score):
-    return ["Very Weak", "Weak", "Medium", "Strong", "Very Strong"][max(score - 1, 0)]
+    labels = ["Very Weak", "Weak", "Medium", "Strong", "Very Strong"]
+    return labels[min(score, len(labels) - 1)]
 
-def generate_qr_image(data):
-    qr = qrcode.QRCode(version=1, box_size=5, border=2)
+def strength_color(score):
+    if score <= 1:
+        return DANGER
+    elif score == 2:
+        return WARNING
+    elif score == 3:
+        return INFO
+    else:
+        return SUCCESS
+
+def generate_qr(data):
+    qr = qrcode.QRCode(box_size=4, border=2)
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#000000", back_color="white")
+    img = qr.make_image(fill_color="black", back_color="white")
     buf = BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
     return buf
 
-def generate_and_store_password(length, use_upper, use_lower, use_digit, use_symbols, exclude_similar):
-    chars = ""
-    if use_upper: chars += string.ascii_uppercase
-    if use_lower: chars += string.ascii_lowercase
-    if use_digit: chars += string.digits
-    if use_symbols: chars += "!@#$%^&*_-"
-
-    if exclude_similar:
-        chars = "".join(c for c in chars if c not in "0Ool1I")
-
-    if not chars:
-        st.warning("Select at least one character set.")
-        return
-
-    pwd = generate_password(length, chars)
-    st.session_state.password = pwd
-    st.session_state.password_history.append({
-        "password": pwd,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-
-# ================== PAGE CONFIG ==================
-st.set_page_config("Password Generator", "🔐", layout="wide")
-
-# ================== SESSION ==================
-st.session_state.setdefault("password", "")
-st.session_state.setdefault("password_history", [])
-st.session_state.setdefault("show_all_history", False)
-st.session_state.setdefault("show_all_history_qr", False)
-st.session_state.setdefault("show_qr", False)
-st.session_state.setdefault("main_color", "#2563eb")
-
-# ================== COLOR PICKER ==================
-st.session_state.main_color = st.color_picker(
-    "🎨 Choose main color",
-    value=st.session_state.main_color
-)
-
 # ================== STYLE ==================
-def set_style():
-    main_color = st.session_state.main_color
-    st.markdown(f"""
-    <style>
-    .stApp {{
-        background-color: #ffffff;
-        color: #0f172a;
-        font-family: 'Inter', sans-serif;
-    }}
-    pre, code {{
-        background-color: #f8fafc !important;
-        color: {main_color} !important;
-        border-radius: 12px !important;
-        border: 1px solid #e2e8f0 !important;
-        font-size: 16px !important;
-        padding: 14px !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown(f"""
+<style>
+.stApp {{
+    background: {BG};
+    font-family: Inter, sans-serif;
+}}
+.card {{
+    background: {CARD};
+    border: 1px solid {BORDER};
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+}}
+.title {{
+    font-size: 20px;
+    font-weight: 600;
+}}
+.muted {{
+    color: {MUTED};
+    font-size: 14px;
+}}
+.password-box {{
+    background: {PRIMARY};
+    color: white;
+    padding: 16px;
+    border-radius: 14px;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+}}
+.strength-bar {{
+    height: 8px;
+    background: {BORDER};
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 4px;
+}}
+.strength-fill {{
+    height: 100%;
+}}
+</style>
+""", unsafe_allow_html=True)
 
-set_style()
+# ================== HEADER ==================
+st.markdown("## 🔐 Secure Password Generator")
+st.markdown("<div class='muted'>Premium password generation experience</div>", unsafe_allow_html=True)
+st.divider()
 
 # ================== LAYOUT ==================
-left, center, history_col, test_col = st.columns([1.2, 2, 2, 2])
+settings, generate, result, history = st.columns([1.2, 1.4, 2, 2])
 
-# ================== LEFT ==================
-with left:
-    st.subheader("⚙️ Settings")
-    use_upper = st.checkbox("Uppercase", True)
-    use_lower = st.checkbox("Lowercase", True)
-    use_digit = st.checkbox("Numbers", True)
-    use_symbols = st.checkbox("Symbols", False)
-    exclude_similar = st.checkbox("Exclude similar")
-    length = st.slider("Length", 4, 64, 16)
-    num_passwords = st.number_input("Number of passwords", 1, 100, 1)
+# ================== SETTINGS ==================
+with settings:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<div class='title'>Settings</div>", unsafe_allow_html=True)
 
-# ================== CENTER ==================
-with center:
-    st.subheader("🔑 Generated Password")
-    st.code(st.session_state.password or "Click Generate")
+    upper = st.checkbox("Uppercase (A-Z)", True)
+    lower = st.checkbox("Lowercase (a-z)", True)
+    digits = st.checkbox("Numbers (0-9)", True)
+    symbols = st.checkbox("Symbols", True)
+    exclude = st.checkbox("Eliminate similarities (O,0,l,I)")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔁 Generate"):
-            for _ in range(num_passwords):
-                generate_and_store_password(
-                    length, use_upper, use_lower,
-                    use_digit, use_symbols, exclude_similar
-                )
+    length = st.slider("Password length", 8, 64, 16)
+    batch = st.slider("Number of passwords", 1, 10, 1)
 
-    with c2:
-        if st.button("🔳 Show / Hide QR"):
-            st.session_state.show_qr = not st.session_state.show_qr
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================== GENERATE ==================
+with generate:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<div class='title'>Generate</div>", unsafe_allow_html=True)
+
+    if st.button("Generate Password(s)", use_container_width=True):
+        chars = ""
+        if upper: chars += string.ascii_uppercase
+        if lower: chars += string.ascii_lowercase
+        if digits: chars += string.digits
+        if symbols: chars += "!@#$%^&*_"
+
+        if exclude:
+            chars = "".join(c for c in chars if c not in "0Ool1I")
+
+        if not chars:
+            st.warning("Please select at least one character type")
+        else:
+            for _ in range(batch):
+                pwd = generate_password(length, chars)
+                st.session_state.password = pwd
+                st.session_state.history.insert(0, {
+                    "pwd": pwd,
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+            st.session_state.show_qr = False
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================== RESULT ==================
+with result:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<div class='title'>Result</div>", unsafe_allow_html=True)
 
     if st.session_state.password:
-        score = password_strength(st.session_state.password)
-        color = "#ef4444" if score <= 2 else "#facc15" if score == 3 else "#22c55e"
+        pwd = st.session_state.password
+        score = strength(pwd)
+        width = min(score, 5) * 20
+        color = strength_color(score)
+
+        st.markdown(f"<div class='password-box'>{pwd}</div>", unsafe_allow_html=True)
+
+        if st.button("Copy Password"):
+            st.session_state.copied = True
+
+        if st.session_state.copied:
+            st.code(pwd)
+            st.success("Copied ✓")
+            st.session_state.copied = False
 
         st.markdown(f"**Strength:** {strength_label(score)}")
         st.markdown(f"""
-        <div style="background:#e5e7eb;border-radius:8px;height:10px;">
-            <div style="width:{score*20}%;background:{color};height:100%;border-radius:8px;"></div>
+        <div class="strength-bar">
+            <div class="strength-fill" style="width:{width}%; background:{color};"></div>
         </div>
         """, unsafe_allow_html=True)
 
+        st.session_state.show_qr = st.checkbox("Show QR", value=st.session_state.show_qr)
         if st.session_state.show_qr:
-            st.image(generate_qr_image(st.session_state.password), width=120)
+            st.image(generate_qr(pwd), width=120)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ================== HISTORY ==================
-with history_col:
-    st.subheader("📜 History")
+with history:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown(f"<div class='title'>History ({len(st.session_state.history)})</div>", unsafe_allow_html=True)
 
-    if st.button("🗑️ Clear History"):
-        st.session_state.password_history.clear()
+    search = st.text_input("Search", placeholder="password or date")
 
-    if st.button("👁️ Show All QR" if not st.session_state.show_all_history_qr else "🙈 Hide All QR"):
-        st.session_state.show_all_history_qr = not st.session_state.show_all_history_qr
+    history_list = st.session_state.history
+    if search:
+        history_list = [
+            h for h in history_list
+            if search.lower() in h["pwd"].lower()
+            or search.lower() in h["time"].lower()
+        ]
 
-    history = st.session_state.password_history
-    latest = history[-1:]  
-    rest = history[:-1]
+    show_all = st.session_state.show_all_history
+    visible = history_list if show_all else history_list[:3]
 
-    for item in reversed(latest):
-        st.code(item["password"])
-        st.caption(item["time"])
-        if st.session_state.show_all_history_qr:
-            st.image(generate_qr_image(item["password"]), width=80)
+    for i, item in enumerate(visible):
+        masked = item["pwd"][:4] + "••••" + item["pwd"][-2:]
+        col1, col2, col3 = st.columns([3, 1, 1])
 
-    if rest and st.session_state.show_all_history:
-        for item in reversed(rest):
-            st.code(item["password"])
+        with col1:
+            st.code(masked)
             st.caption(item["time"])
-            if st.session_state.show_all_history_qr:
-                st.image(generate_qr_image(item["password"]), width=80)
 
-    if rest:
-        if st.button("⬇️ Show More" if not st.session_state.show_all_history else "⬆️ Show Less"):
-            st.session_state.show_all_history = not st.session_state.show_all_history
+        with col2:
+            if st.button("Copy", key=f"copy_{i}"):
+                st.code(item["pwd"])
+                st.success("Copied ✓")
 
-# ================== TEST COLUMN ==================
-with test_col:
-    st.subheader("🧪 Test Any Password")
+        with col3:
+            if st.checkbox("QR", key=f"qr_{i}"):
+                st.image(generate_qr(item["pwd"]), width=100)
 
-    test_pwd = st.text_input("Enter password", type="password")
-    if test_pwd:
-        test_score = password_strength(test_pwd)
-        test_color = "#ef4444" if test_score <= 2 else "#facc15" if test_score == 3 else "#22c55e"
+    if len(history_list) > 3:
+        if st.button("Show less ▲" if show_all else "Show more ▼", use_container_width=True):
+            st.session_state.show_all_history = not show_all
 
-        st.markdown(f"**Strength:** {strength_label(test_score)}")
-        st.markdown(f"""
-        <div style="background:#e5e7eb;border-radius:8px;height:10px;">
-            <div style="width:{test_score*20}%;background:{test_color};height:100%;border-radius:8px;"></div>
-        </div>
-        """, unsafe_allow_html=True)
+    if st.button("Clear History", use_container_width=True):
+        st.session_state.history.clear()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================== TEST ==================
+st.divider()
+st.markdown("### 🧪 Test Password Strength")
+
+show = st.toggle("Show password")
+test = st.text_input("Enter password", type="text" if show else "password")
+
+if test:
+    score = strength(test)
+    width = min(score, 5) * 20
+    color = strength_color(score)
+
+    st.markdown(f"**Strength:** {strength_label(score)}")
+    st.markdown(f"""
+    <div class="strength-bar">
+        <div class="strength-fill" style="width:{width}%; background:{color};"></div>
+    </div>
+    """, unsafe_allow_html=True)
